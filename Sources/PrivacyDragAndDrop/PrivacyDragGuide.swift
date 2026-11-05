@@ -74,6 +74,8 @@ private final class Tracking: NSObject {
     private var displayLink: CADisplayLink?
     private var settingsWindowID: CGWindowID?
     private var nextGrantCheck = ContinuousClock.now
+    private var nextCoverageCheck = ContinuousClock.now
+    private var isSettingsObscured = false
 
     init(panel: NSPanel, isGranted: @escaping @MainActor () -> Bool, onEnd: @escaping @MainActor () -> Void) {
         self.panel = panel
@@ -105,7 +107,11 @@ private final class Tracking: NSObject {
             return
         }
         settingsWindowID = window.id
-        if SystemSettings.isFullyObscured(window) {
+        if now >= nextCoverageCheck {
+            nextCoverageCheck = now + .milliseconds(100)
+            isSettingsObscured = SystemSettings.isFullyObscured(window)
+        }
+        if isSettingsObscured {
             if panel.isVisible { panel.orderOut(nil) }
         } else {
             pin(to: window.frame)
