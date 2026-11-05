@@ -9,6 +9,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "PrivacyDragAndDrop"),
+        .testTarget(name: "PrivacyDragAndDropTests", dependencies: ["PrivacyDragAndDrop"]),
         .executableTarget(name: "PrivacyDragAndDropDemo", dependencies: ["PrivacyDragAndDrop"]),
     ]
 )
