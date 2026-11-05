@@ -30,8 +30,10 @@ public enum SystemSettings {
             .window
     }
 
-    static var isFrontmost: Bool {
-        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
+    /// Whether ordinary app windows stacked above `window` hide all of it.
+    static func isFullyObscured(_ window: Window) -> Bool {
+        let above = windows(CGWindowListCopyWindowInfo(.optionOnScreenAboveWindow, window.id))
+        return isFullyCovered(window.frame, by: above.map(\.frame))
     }
 
     /// Opens `pane`. A System Settings launched cold restores its last pane instead of the

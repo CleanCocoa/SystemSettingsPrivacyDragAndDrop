@@ -65,7 +65,7 @@ public final class PrivacyDragGuide {
 }
 
 /// Keeps one panel pinned to the System Settings window, once per display frame, and
-/// hides it while another app is frontmost.
+/// hides it while other windows cover all of the Settings window.
 @MainActor
 private final class Tracking: NSObject {
     private let panel: NSPanel
@@ -105,10 +105,10 @@ private final class Tracking: NSObject {
             return
         }
         settingsWindowID = window.id
-        if SystemSettings.isFrontmost {
+        if SystemSettings.isFullyObscured(window) {
+            if panel.isVisible { panel.orderOut(nil) }
+        } else {
             pin(to: window.frame)
-        } else if panel.isVisible {
-            panel.orderOut(nil)
         }
     }
 
