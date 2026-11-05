@@ -10,8 +10,8 @@ func probe() async -> Never {
     print("sandboxed:", container != nil, container ?? "")
     NSWorkspace.shared.open(PrivacyPane.accessibility.settingsURL)
     for _ in 0..<50 {
-        if let frame = SystemSettings.mainWindowFrame() {
-            print("settings window:", NSStringFromRect(frame))
+        if let window = SystemSettings.mainWindow() {
+            print("settings window:", window.id, NSStringFromRect(window.frame))
             exit(0)
         }
         try? await Task.sleep(for: .milliseconds(200))

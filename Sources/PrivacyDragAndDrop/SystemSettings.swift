@@ -5,25 +5,33 @@ import AppKit
 public enum SystemSettings {
     static let bundleIdentifier = "com.apple.systempreferences"
 
-    /// Frame of the main System Settings window in AppKit screen coordinates, if one is on screen.
+    /// A System Settings window as the window server reports it.
+    public struct Window: Equatable, Sendable {
+        public let id: CGWindowID
+        /// In AppKit screen coordinates.
+        public let frame: NSRect
+    }
+
+    /// The largest on-screen System Settings window, if any.
     ///
     /// Reads only window bounds and owner, which needs no Screen Recording permission.
-    public static func mainWindowFrame() -> NSRect? {
-        guard let pid = runningApp?.processIdentifier,
-              let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-                as? [[CFString: Any]]
-        else { return nil }
+    public static func mainWindow() -> Window? {
+        guard let pid = runningApp?.processIdentifier else { return nil }
+        return windows(CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID))
+            .filter { $0.pid == pid && $0.frame.width >= 300 && $0.frame.height >= 200 }
+            .max { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }
+            .map(\.window)
+    }
 
-        let frames = windows.compactMap { window -> CGRect? in
-            guard (window[kCGWindowOwnerPID] as? pid_t) == pid,
-                  (window[kCGWindowLayer] as? Int) == 0,
-                  let bounds = window[kCGWindowBounds] as? NSDictionary,
-                  let frame = CGRect(dictionaryRepresentation: bounds),
-                  frame.width >= 300, frame.height >= 200
-            else { return nil }
-            return frame
-        }
-        return frames.max { $0.width * $0.height < $1.width * $1.height }.map(appKitFrame)
+    /// The window `id` while it is still on screen; cheap enough to call every frame.
+    static func window(id: CGWindowID) -> Window? {
+        windows(CGWindowListCopyWindowInfo(.optionIncludingWindow, id))
+            .first { $0.window.id == id && $0.isOnScreen }?
+            .window
+    }
+
+    static var isFrontmost: Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == bundleIdentifier
     }
 
     /// Opens `pane`. A System Settings launched cold restores its last pane instead of the
@@ -33,7 +41,7 @@ public enum SystemSettings {
         NSWorkspace.shared.open(pane.settingsURL)
         guard !wasRunning else { return nil }
         return Task {
-            for _ in 0..<100 where mainWindowFrame() == nil {
+            for _ in 0..<100 where mainWindow() == nil {
                 try? await Task.sleep(for: .milliseconds(100))
                 if Task.isCancelled { return }
             }
@@ -47,6 +55,27 @@ public enum SystemSettings {
 
     private static var runningApp: NSRunningApplication? {
         NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
+    }
+
+    private struct WindowInfo {
+        let window: Window
+        let pid: pid_t
+        let isOnScreen: Bool
+        var frame: NSRect { window.frame }
+    }
+
+    private static func windows(_ list: CFArray?) -> [WindowInfo] {
+        (list as? [[CFString: Any]] ?? []).compactMap { info in
+            guard let id = info[kCGWindowNumber] as? CGWindowID,
+                  let pid = info[kCGWindowOwnerPID] as? pid_t,
+                  (info[kCGWindowLayer] as? Int) == 0,
+                  let bounds = info[kCGWindowBounds] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds)
+            else { return nil }
+            return WindowInfo(window: Window(id: id, frame: appKitFrame(frame)),
+                              pid: pid,
+                              isOnScreen: info[kCGWindowIsOnscreen] as? Bool ?? false)
+        }
     }
 
     /// Quartz window bounds have a top-left origin on the primary screen; AppKit's is bottom-left.

@@ -7,9 +7,8 @@ import AppKit
 @MainActor
 public final class PrivacyDragGuide {
     private let bundleURL: URL
-    private var panel: NSPanel?
     private var openTask: Task<Void, Never>?
-    private var trackingTask: Task<Void, Never>?
+    private var tracking: Tracking?
 
     /// - Precondition: `bundleURL` is an `.app` bundle; System Settings lists nothing else.
     public init(bundleURL: URL = Bundle.main.bundleURL) {
@@ -20,39 +19,14 @@ public final class PrivacyDragGuide {
     public func show(_ pane: PrivacyPane, isGranted: @escaping @MainActor () -> Bool = { false }) {
         close()
         openTask = SystemSettings.open(pane)
-        let panel = makePanel(for: pane)
-        self.panel = panel
-        trackingTask = Task { [weak self] in
-            var sawSettingsWindow = false
-            while !Task.isCancelled, let self {
-                if isGranted() { return self.close() }
-                if let settings = SystemSettings.mainWindowFrame() {
-                    sawSettingsWindow = true
-                    self.pin(panel, to: settings)
-                } else if sawSettingsWindow {
-                    return self.close()
-                }
-                try? await Task.sleep(for: .milliseconds(120))
-            }
-        }
+        tracking = Tracking(panel: makePanel(for: pane), isGranted: isGranted) { [weak self] in self?.close() }
     }
 
     public func close() {
         openTask?.cancel()
-        trackingTask?.cancel()
         openTask = nil
-        trackingTask = nil
-        panel?.orderOut(nil)
-        panel = nil
-    }
-
-    private func pin(_ panel: NSPanel, to settings: NSRect) {
-        let size = panel.frame.size
-        let visible = NSScreen.screens.first { $0.frame.intersects(settings) }?.visibleFrame ?? settings
-        let x = min(max(settings.maxX - size.width - 16, visible.minX + 8), visible.maxX - size.width - 8)
-        let y = min(max(settings.minY + 16, visible.minY + 8), visible.maxY - size.height - 8)
-        panel.setFrameOrigin(NSPoint(x: x, y: y))
-        panel.orderFrontRegardless()
+        tracking?.stop()
+        tracking = nil
     }
 
     private func makePanel(for pane: PrivacyPane) -> NSPanel {
@@ -87,5 +61,59 @@ public final class PrivacyDragGuide {
         content.addSubview(tile)
         panel.contentView = content
         return panel
+    }
+}
+
+/// Keeps one panel pinned to the System Settings window, once per display frame.
+@MainActor
+private final class Tracking: NSObject {
+    private let panel: NSPanel
+    private let isGranted: @MainActor () -> Bool
+    private let onEnd: @MainActor () -> Void
+    private var displayLink: CADisplayLink?
+    private var settingsWindowID: CGWindowID?
+    private var nextGrantCheck = ContinuousClock.now
+
+    init(panel: NSPanel, isGranted: @escaping @MainActor () -> Bool, onEnd: @escaping @MainActor () -> Void) {
+        self.panel = panel
+        self.isGranted = isGranted
+        self.onEnd = onEnd
+        super.init()
+        // A screen's display link keeps firing while the panel is ordered out; a view's would not.
+        let link = (NSScreen.main ?? NSScreen.screens[0]).displayLink(target: self, selector: #selector(step))
+        link.add(to: .main, forMode: .common)
+        displayLink = link
+    }
+
+    func stop() {
+        displayLink?.invalidate()
+        displayLink = nil
+        panel.orderOut(nil)
+    }
+
+    @objc private func step() {
+        let now = ContinuousClock.now
+        if now >= nextGrantCheck {
+            nextGrantCheck = now + .milliseconds(250)
+            if isGranted() { return onEnd() }
+        }
+
+        let window = settingsWindowID.flatMap(SystemSettings.window(id:)) ?? SystemSettings.mainWindow()
+        guard let window else {
+            if settingsWindowID != nil { onEnd() }
+            return
+        }
+        settingsWindowID = window.id
+        pin(to: window.frame)
+    }
+
+    private func pin(to settings: NSRect) {
+        let size = panel.frame.size
+        let visible = NSScreen.screens.first { $0.frame.intersects(settings) }?.visibleFrame ?? settings
+        let x = min(max(settings.maxX - size.width - 16, visible.minX + 8), visible.maxX - size.width - 8)
+        let y = min(max(settings.minY + 16, visible.minY + 8), visible.maxY - size.height - 8)
+        let origin = NSPoint(x: x, y: y)
+        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
+        if !panel.isVisible { panel.orderFrontRegardless() }
     }
 }
