@@ -94,16 +94,22 @@ private final class Tracking: NSObject {
         panel.orderOut(nil)
     }
 
+    /// The display link keeps `self` alive, so ending must not depend on the guide still being around.
+    private func end() {
+        stop()
+        onEnd()
+    }
+
     @objc private func step() {
         let now = ContinuousClock.now
         if now >= nextGrantCheck {
             nextGrantCheck = now + .milliseconds(250)
-            if isGranted() { return onEnd() }
+            if isGranted() { return end() }
         }
 
         let window = settingsWindowID.flatMap(SystemSettings.window(id:)) ?? SystemSettings.mainWindow()
         guard let window else {
-            if settingsWindowID != nil { onEnd() }
+            if settingsWindowID != nil { end() }
             return
         }
         settingsWindowID = window.id
