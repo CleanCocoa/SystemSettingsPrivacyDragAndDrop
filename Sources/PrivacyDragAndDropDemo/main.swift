@@ -26,6 +26,7 @@ final class DemoController: NSObject, NSApplicationDelegate {
     var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = makeMainMenu()
         let buttons = PrivacyPane.allCases.map { pane in
             let button = NSButton(title: pane.listName, target: self, action: #selector(showGuide(_:)))
             button.tag = PrivacyPane.allCases.firstIndex(of: pane)!
@@ -44,6 +45,18 @@ final class DemoController: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         self.window = window
         NSApp.activate()
+    }
+
+    private func makeMainMenu() -> NSMenu {
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Quit \(ProcessInfo.processInfo.processName)",
+                        action: #selector(NSApplication.terminate(_:)),
+                        keyEquivalent: "q")
+        let appItem = NSMenuItem()
+        appItem.submenu = appMenu
+        let mainMenu = NSMenu()
+        mainMenu.addItem(appItem)
+        return mainMenu
     }
 
     @objc func showGuide(_ sender: NSButton) {
