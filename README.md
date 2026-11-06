@@ -8,7 +8,7 @@ The panel follows the Settings window as it moves, hides while other windows cov
 
 Works in sandboxed apps. It reads only window bounds and owners from the window server, which needs no Screen Recording permission.
 
-Adapted from the permission guide in [hex](https://github.com/anomalyco/hex) (MIT, see `LICENSE-hex`).
+MIT licensed, see `LICENSE`. Adapted from the permission guide in [hex](https://github.com/anomalyco/hex) (MIT, see `LICENSE-hex`).
 
 ## Requirements
 
@@ -17,18 +17,20 @@ Adapted from the permission guide in [hex](https://github.com/anomalyco/hex) (MI
 
 ## Installation
 
-Add the package as a Swift Package Manager dependency. While it has no published remote, refer to it by path:
+Add the package as a Swift Package Manager dependency:
 
 ```swift
 dependencies: [
-    .package(path: "../PrivacyDragAndDrop"),
+    .package(url: "https://github.com/CleanCocoa/SystemSettingsPrivacyDragAndDrop", from: "0.1.0"),
 ],
 targets: [
-    .target(name: "MyApp", dependencies: ["PrivacyDragAndDrop"]),
+    .target(name: "MyApp", dependencies: [
+        .product(name: "PrivacyDragAndDrop", package: "SystemSettingsPrivacyDragAndDrop"),
+    ]),
 ]
 ```
 
-In Xcode, use File > Add Package Dependencies… > Add Local….
+In Xcode, use File > Add Package Dependencies… and enter the repository URL.
 
 ## Usage
 
