@@ -4,6 +4,8 @@ Helps users grant your Mac app a privacy permission. It opens the right Privacy 
 
 The panel follows the Settings window as it moves, hides while other windows cover all of it, and closes once the permission is granted or the Settings window closes.
 
+<img src="docs/screenshot.png" width="866" alt="System Settings showing the Input Monitoring list, with a panel below it that reads &quot;Drag PrivacyDragAndDropDemo into the Input Monitoring list above&quot; and holds a draggable app tile">
+
 Works in sandboxed apps. It reads only window bounds and owners from the window server, which needs no Screen Recording permission.
 
 Adapted from the permission guide in [hex](https://github.com/anomalyco/hex) (MIT, see `LICENSE-hex`).
